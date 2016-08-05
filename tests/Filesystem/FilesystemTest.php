@@ -120,6 +120,47 @@ class FilesystemTest extends PHPUnit_Framework_TestCase
         $this->assertFileExists($this->tempDir.'/tmp2/nested/baz.txt');
     }
 
+    public function testMoveDirectoryMovesEntireDirectory()
+    {
+        mkdir($this->tempDir.'/tmp', 0777, true);
+        file_put_contents($this->tempDir.'/tmp/foo.txt', '');
+        file_put_contents($this->tempDir.'/tmp/bar.txt', '');
+        mkdir($this->tempDir.'/tmp/nested', 0777, true);
+        file_put_contents($this->tempDir.'/tmp/nested/baz.txt', '');
+
+        $files = new Filesystem();
+        $files->moveDirectory($this->tempDir.'/tmp', $this->tempDir.'/tmp2');
+        $this->assertTrue(is_dir($this->tempDir.'/tmp2'));
+        $this->assertFileExists($this->tempDir.'/tmp2/foo.txt');
+        $this->assertFileExists($this->tempDir.'/tmp2/bar.txt');
+        $this->assertTrue(is_dir($this->tempDir.'/tmp2/nested'));
+        $this->assertFileExists($this->tempDir.'/tmp2/nested/baz.txt');
+        $this->assertFalse(is_dir($this->tempDir.'/tmp'));
+    }
+
+    public function testMoveDirectoryMovesEntireDirectoryAndOverwrites()
+    {
+        mkdir($this->tempDir.'/tmp', 0777, true);
+        file_put_contents($this->tempDir.'/tmp/foo.txt', '');
+        file_put_contents($this->tempDir.'/tmp/bar.txt', '');
+        mkdir($this->tempDir.'/tmp/nested', 0777, true);
+        file_put_contents($this->tempDir.'/tmp/nested/baz.txt', '');
+        mkdir($this->tempDir.'/tmp2', 0777, true);
+        file_put_contents($this->tempDir.'/tmp2/foo2.txt', '');
+        file_put_contents($this->tempDir.'/tmp2/bar2.txt', '');
+
+        $files = new Filesystem();
+        $files->moveDirectory($this->tempDir.'/tmp', $this->tempDir.'/tmp2', true);
+        $this->assertTrue(is_dir($this->tempDir.'/tmp2'));
+        $this->assertFileExists($this->tempDir.'/tmp2/foo.txt');
+        $this->assertFileExists($this->tempDir.'/tmp2/bar.txt');
+        $this->assertTrue(is_dir($this->tempDir.'/tmp2/nested'));
+        $this->assertFileExists($this->tempDir.'/tmp2/nested/baz.txt');
+        $this->assertFileNotExists($this->tempDir.'/tmp2/foo2.txt');
+        $this->assertFileNotExists($this->tempDir.'/tmp2/bar2.txt');
+        $this->assertFalse(is_dir($this->tempDir.'/tmp'));
+    }
+
     /**
      * @expectedException Illuminate\Contracts\Filesystem\FileNotFoundException
      */
@@ -271,12 +312,6 @@ class FilesystemTest extends PHPUnit_Framework_TestCase
      */
     public function testSharedGet()
     {
-        if (defined('HHVM_VERSION')) {
-            $this->markTestSkipped('Skip HHVM test due to bug: https://github.com/facebook/hhvm/issues/5657');
-
-            return;
-        }
-
         $content = '';
         for ($i = 0; $i < 1000000; ++$i) {
             $content .= $i;

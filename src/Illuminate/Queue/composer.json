@@ -10,7 +10,7 @@
     "authors": [
         {
             "name": "Taylor Otwell",
-            "email": "taylorotwell@gmail.com"
+            "email": "taylor@laravel.com"
         }
     ],
     "require": {
@@ -26,10 +26,7 @@
     "autoload": {
         "psr-4": {
             "Illuminate\\Queue\\": ""
-        },
-        "classmap": [
-            "IlluminateQueueClosure.php"
-        ]
+        }
     },
     "extra": {
         "branch-alias": {

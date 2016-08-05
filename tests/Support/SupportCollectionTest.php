@@ -335,6 +335,16 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase
         );
     }
 
+    public function testWhereStrict()
+    {
+        $c = new Collection([['v' => 3], ['v' => '3']]);
+
+        $this->assertEquals(
+            [['v' => 3]],
+            $c->whereStrict('v', 3)->values()->all()
+        );
+    }
+
     public function testWhereIn()
     {
         $c = new Collection([['v' => 1], ['v' => 2], ['v' => 3], ['v' => '3'], ['v' => 4]]);
@@ -402,6 +412,17 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase
 
         $c = new Collection([['#foo', ['#bar', ['#baz']]], '#zap']);
         $this->assertEquals(['#foo', '#bar', ['#baz'], '#zap'], $c->flatten(2)->all());
+    }
+
+    public function testFlattenIgnoresKeys()
+    {
+        // No depth ignores keys
+        $c = new Collection(['#foo', ['key' => '#bar'], ['key' => '#baz'], 'key' => '#zap']);
+        $this->assertEquals(['#foo', '#bar', '#baz', '#zap'], $c->flatten()->all());
+
+        // Depth of 1 ignores keys
+        $c = new Collection(['#foo', ['key' => '#bar'], ['key' => '#baz'], 'key' => '#zap']);
+        $this->assertEquals(['#foo', '#bar', '#baz', '#zap'], $c->flatten(1)->all());
     }
 
     public function testMergeNull()
@@ -1328,6 +1349,123 @@ class SupportCollectionTest extends PHPUnit_Framework_TestCase
     {
         $data = new Collection([1, 2, 3]);
         $data->random(4);
+    }
+
+    public function testPipe()
+    {
+        $collection = new Collection([1, 2, 3]);
+
+        $this->assertEquals(6, $collection->pipe(function ($collection) {
+            return $collection->sum();
+        }));
+    }
+
+    public function testMedianValueWithArrayCollection()
+    {
+        $collection = new Collection([1, 2, 2, 4]);
+
+        $this->assertEquals(2, $collection->median());
+    }
+
+    public function testMedianValueByKey()
+    {
+        $collection = new Collection([
+            (object) ['foo' => 1],
+            (object) ['foo' => 2],
+            (object) ['foo' => 2],
+            (object) ['foo' => 4],
+        ]);
+        $this->assertEquals(2, $collection->median('foo'));
+    }
+
+    public function testEvenMedianCollection()
+    {
+        $collection = new Collection([
+            (object) ['foo' => 0],
+            (object) ['foo' => 3],
+        ]);
+        $this->assertEquals(1.5, $collection->median('foo'));
+    }
+
+    public function testMedianOutOfOrderCollection()
+    {
+        $collection = new Collection([
+            (object) ['foo' => 0],
+            (object) ['foo' => 5],
+            (object) ['foo' => 3],
+        ]);
+        $this->assertEquals(3, $collection->median('foo'));
+    }
+
+    public function testMedianOnEmptyCollectionReturnsNull()
+    {
+        $collection = new Collection();
+        $this->assertNull($collection->median());
+    }
+
+    public function testModeOnNullCollection()
+    {
+        $collection = new Collection();
+        $this->assertNull($collection->mode());
+    }
+
+    public function testMode()
+    {
+        $collection = new Collection([1, 2, 3, 4, 4, 5]);
+        $this->assertEquals([4], $collection->mode());
+    }
+
+    public function testModeValueByKey()
+    {
+        $collection = new Collection([
+            (object) ['foo' => 1],
+            (object) ['foo' => 1],
+            (object) ['foo' => 2],
+            (object) ['foo' => 4],
+        ]);
+        $this->assertEquals([1], $collection->mode('foo'));
+    }
+
+    public function testWithMultipleModeValues()
+    {
+        $collection = new Collection([1, 2, 2, 1]);
+        $this->assertEquals([1, 2], $collection->mode());
+    }
+
+    public function testSliceOffset()
+    {
+        $collection = new Collection([1, 2, 3, 4, 5, 6, 7, 8]);
+        $this->assertEquals([4, 5, 6, 7, 8], $collection->slice(3)->values()->toArray());
+    }
+
+    public function testSliceNegativeOffset()
+    {
+        $collection = new Collection([1, 2, 3, 4, 5, 6, 7, 8]);
+        $this->assertEquals([6, 7, 8], $collection->slice(-3)->values()->toArray());
+    }
+
+    public function testSliceOffsetAndLength()
+    {
+        $collection = new Collection([1, 2, 3, 4, 5, 6, 7, 8]);
+        $this->assertEquals([4, 5, 6], $collection->slice(3, 3)->values()->toArray());
+    }
+
+    public function testSliceOffsetAndNegativeLength()
+    {
+        $collection = new Collection([1, 2, 3, 4, 5, 6, 7, 8]);
+        $this->assertEquals([4, 5, 6, 7], $collection->slice(3, -1)->values()->toArray());
+    }
+
+    public function testSliceNegativeOffsetAndLength()
+    {
+        $collection = new Collection([1, 2, 3, 4, 5, 6, 7, 8]);
+        $this->assertEquals([4, 5, 6], $collection->slice(-5, 3)->values()->toArray());
+    }
+
+    public function testSliceNegativeOffsetAndNegativeLength()
+    {
+        $collection = new Collection([1, 2, 3, 4, 5, 6, 7, 8]);
+        $this->assertEquals([3, 4, 5, 6], $collection->slice(-6, -2)->values()->toArray());
     }
 }
 

@@ -2,6 +2,7 @@
 
 use Mockery as m;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 
 class DatabaseEloquentModelTest extends PHPUnit_Framework_TestCase
@@ -43,6 +44,21 @@ class DatabaseEloquentModelTest extends PHPUnit_Framework_TestCase
         $this->assertTrue($model->isDirty('bar'));
         $this->assertTrue($model->isDirty('foo', 'bar'));
         $this->assertTrue($model->isDirty(['foo', 'bar']));
+    }
+
+    public function testCleanAttributes()
+    {
+        $model = new EloquentModelStub(['foo' => '1', 'bar' => 2, 'baz' => 3]);
+        $model->syncOriginal();
+        $model->foo = 1;
+        $model->bar = 20;
+        $model->baz = 30;
+
+        $this->assertFalse($model->isClean());
+        $this->assertTrue($model->isClean('foo'));
+        $this->assertFalse($model->isClean('bar'));
+        $this->assertFalse($model->isClean('foo', 'bar'));
+        $this->assertFalse($model->isClean(['foo', 'bar']));
     }
 
     public function testCalculatedAttributes()
@@ -1312,7 +1328,7 @@ class DatabaseEloquentModelTest extends PHPUnit_Framework_TestCase
 
     public function testIntIdTypePreserved()
     {
-        $model = $this->getMock('EloquentModelStub', ['newQueryWithoutScopes', 'updateTimestamps', 'refresh']);
+        $model = $this->getMockBuilder('EloquentModelStub')->setMethods(['newQueryWithoutScopes', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock('Illuminate\Database\Eloquent\Builder');
         $query->shouldReceive('insertGetId')->once()->with([], 'id')->andReturn(1);
         $model->expects($this->once())->method('newQueryWithoutScopes')->will($this->returnValue($query));
@@ -1323,13 +1339,63 @@ class DatabaseEloquentModelTest extends PHPUnit_Framework_TestCase
 
     public function testStringIdTypePreserved()
     {
-        $model = $this->getMock('EloquentIdTypeModelStub', ['newQueryWithoutScopes', 'updateTimestamps', 'refresh']);
+        $model = $this->getMockBuilder('EloquentIdTypeModelStub')->setMethods(['newQueryWithoutScopes', 'updateTimestamps', 'refresh'])->getMock();
         $query = m::mock('Illuminate\Database\Eloquent\Builder');
         $query->shouldReceive('insertGetId')->once()->with([], 'id')->andReturn('string id');
         $model->expects($this->once())->method('newQueryWithoutScopes')->will($this->returnValue($query));
 
         $this->assertTrue($model->save());
         $this->assertEquals('string id', $model->id);
+    }
+
+    public function testScopesMethod()
+    {
+        $model = new EloquentModelStub;
+        $this->addMockConnection($model);
+
+        $scopes = [
+            'published',
+            'category' => 'Laravel',
+            'framework' => ['Laravel', '5.2'],
+        ];
+
+        $this->assertInstanceOf(Builder::class, $model->scopes($scopes));
+
+        $this->assertSame($scopes, $model->scopesCalled);
+    }
+
+    public function testIsWithTheSameModelInstance()
+    {
+        $firstInstance = new EloquentModelStub(['id' => 1]);
+        $secondInstance = new EloquentModelStub(['id' => 1]);
+        $result = $firstInstance->is($secondInstance);
+        $this->assertTrue($result);
+    }
+
+    public function testIsWithAnotherModelInstance()
+    {
+        $firstInstance = new EloquentModelStub(['id' => 1]);
+        $secondInstance = new EloquentModelStub(['id' => 2]);
+        $result = $firstInstance->is($secondInstance);
+        $this->assertFalse($result);
+    }
+
+    public function testIsWithAnotherTable()
+    {
+        $firstInstance = new EloquentModelStub(['id' => 1]);
+        $secondInstance = new EloquentModelStub(['id' => 1]);
+        $secondInstance->setTable('foo');
+        $result = $firstInstance->is($secondInstance);
+        $this->assertFalse($result);
+    }
+
+    public function testIsWithAnotherConnection()
+    {
+        $firstInstance = new EloquentModelStub(['id' => 1]);
+        $secondInstance = new EloquentModelStub(['id' => 1]);
+        $secondInstance->setConnection('foo');
+        $result = $firstInstance->is($secondInstance);
+        $this->assertFalse($result);
     }
 
     protected function addMockConnection($model)
@@ -1355,6 +1421,7 @@ class EloquentTestObserverStub
 class EloquentModelStub extends Model
 {
     public $connection;
+    public $scopesCalled = [];
     protected $table = 'stub';
     protected $guarded = [];
     protected $morph_to_stub_type = 'EloquentModelSaveStub';
@@ -1412,6 +1479,21 @@ class EloquentModelStub extends Model
     public function getAppendableAttribute()
     {
         return 'appended';
+    }
+
+    public function scopePublished(Builder $builder)
+    {
+        $this->scopesCalled[] = 'published';
+    }
+
+    public function scopeCategory(Builder $builder, $category)
+    {
+        $this->scopesCalled['category'] = $category;
+    }
+
+    public function scopeFramework(Builder $builder, $framework, $version)
+    {
+        $this->scopesCalled['framework'] = [$framework, $version];
     }
 }
 
