@@ -2,9 +2,9 @@
 
 namespace Illuminate\Notifications\Channels;
 
-use Illuminate\Support\Arr;
 use Nexmo\Client as NexmoClient;
 use Illuminate\Notifications\Notification;
+use Illuminate\Notifications\Messages\NexmoMessage;
 
 class NexmoSmsChannel
 {
@@ -38,55 +38,26 @@ class NexmoSmsChannel
     /**
      * Send the given notification.
      *
-     * @param  \Illuminate\Support\Collection  $notifiables
+     * @param  mixed  $notifiable
      * @param  \Illuminate\Notifications\Notification  $notification
-     * @return void
+     * @return \Nexmo\Message\Message
      */
-    public function send($notifiables, Notification $notification)
+    public function send($notifiable, Notification $notification)
     {
-        foreach ($notifiables as $notifiable) {
-            if (! $to = $notifiable->routeNotificationFor('nexmo')) {
-                continue;
-            }
-
-            $this->nexmo->message()->send([
-                'from' => $this->from,
-                'to' => $to,
-                'text' => $this->formatNotification($notification),
-            ]);
+        if (! $to = $notifiable->routeNotificationFor('nexmo')) {
+            return;
         }
-    }
 
-    /**
-     * Format the given notification to a single string.
-     *
-     * @param  \Illuminate\Notifications\Notification  $notification
-     * @return string
-     */
-    protected function formatNotification(Notification $notification)
-    {
-        $data = $notification->toArray();
+        $message = $notification->toNexmo($notifiable);
 
-        $actionText = $notification->actionText
-                    ? $notification->actionText.': ' : '';
+        if (is_string($message)) {
+            $message = new NexmoMessage($message);
+        }
 
-        return trim(implode(PHP_EOL.PHP_EOL, array_filter([
-            implode(' ', Arr::get($data, 'introLines', [])),
-            $actionText.Arr::get($data, 'actionUrl'),
-            implode(' ', Arr::get($data, 'outroLines', [])),
-        ])));
-    }
-
-    /**
-     * Set the phone number that should be used to send notification.
-     *
-     * @param  string  $from
-     * @return $this
-     */
-    public function sendNotificationsFrom($from)
-    {
-        $this->from = $from;
-
-        return $this;
+        return $this->nexmo->message()->send([
+            'from' => $message->from ?: $this->from,
+            'to' => $to,
+            'text' => trim($message->content),
+        ]);
     }
 }

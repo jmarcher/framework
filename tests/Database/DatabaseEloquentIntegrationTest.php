@@ -1,6 +1,5 @@
 <?php
 
-use Illuminate\Database\Connection;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Eloquent\Model as Eloquent;
 use Illuminate\Database\Eloquent\Relations\Relation;
@@ -101,6 +100,8 @@ class DatabaseEloquentIntegrationTest extends PHPUnit_Framework_TestCase
     {
         EloquentTestUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
         EloquentTestUser::create(['id' => 2, 'email' => 'abigailotwell@gmail.com']);
+
+        $this->assertEquals(2, EloquentTestUser::count());
 
         $model = EloquentTestUser::where('email', 'taylorotwell@gmail.com')->first();
         $this->assertEquals('taylorotwell@gmail.com', $model->email);
@@ -456,6 +457,15 @@ class DatabaseEloquentIntegrationTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('Child Post', $results->first()->name);
     }
 
+    public function testAggregatedValuesOfDatetimeField()
+    {
+        EloquentTestUser::create(['id' => 1, 'email' => 'test1@test.test', 'created_at' => '2016-08-10 09:21:00', 'updated_at' => Carbon\Carbon::now()]);
+        EloquentTestUser::create(['id' => 2, 'email' => 'test2@test.test', 'created_at' => '2016-08-01 12:00:00', 'updated_at' => Carbon\Carbon::now()]);
+
+        $this->assertEquals('2016-08-10 09:21:00', EloquentTestUser::max('created_at'));
+        $this->assertEquals('2016-08-01 12:00:00', EloquentTestUser::min('created_at'));
+    }
+
     public function testWhereHasOnSelfReferencingBelongsToRelationship()
     {
         $parentPost = EloquentTestPost::create(['name' => 'Parent Post', 'user_id' => 1]);
@@ -543,6 +553,21 @@ class DatabaseEloquentIntegrationTest extends PHPUnit_Framework_TestCase
 
         $this->assertEquals(1, count($results));
         $this->assertEquals('Grandparent Post', $results->first()->name);
+    }
+
+    public function testHasWithNonWhereBindings()
+    {
+        $user = EloquentTestUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+
+        $user->posts()->create(['name' => 'Post 2'])
+             ->photos()->create(['name' => 'photo.jpg']);
+
+        $query = EloquentTestUser::has('postWithPhotos');
+
+        $bindingsCount = count($query->getBindings());
+        $questionMarksCount = substr_count($query->toSql(), '?');
+
+        $this->assertEquals($questionMarksCount, $bindingsCount);
     }
 
     public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverChunkedRequest()
@@ -865,6 +890,13 @@ class DatabaseEloquentIntegrationTest extends PHPUnit_Framework_TestCase
         $this->assertCount(1, $result->getRelations());
     }
 
+    public function testModelIgnoredByGlobalScopeCanBeRefreshed()
+    {
+        $user = EloquentTestUserWithOmittingGlobalScope::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+
+        $this->assertNotNull($user->fresh());
+    }
+
     public function testForPageAfterIdCorrectlyPaginates()
     {
         EloquentTestUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
@@ -899,7 +931,7 @@ class DatabaseEloquentIntegrationTest extends PHPUnit_Framework_TestCase
     /**
      * Get a database connection instance.
      *
-     * @return Connection
+     * @return \Illuminate\Database\Connection
      */
     protected function connection($connection = 'default')
     {
@@ -909,7 +941,7 @@ class DatabaseEloquentIntegrationTest extends PHPUnit_Framework_TestCase
     /**
      * Get a schema builder instance.
      *
-     * @return Schema\Builder
+     * @return \Illuminate\Database\Schema\Builder
      */
     protected function schema($connection = 'default')
     {
@@ -954,6 +986,14 @@ class EloquentTestUser extends Eloquent
     {
         return $this->morphMany('EloquentTestPhoto', 'imageable');
     }
+
+    public function postWithPhotos()
+    {
+        return $this->post()->join('photo', function ($join) {
+            $join->on('photo.imageable_id', 'post.id');
+            $join->where('photo.imageable_type', 'EloquentTestPost');
+        });
+    }
 }
 
 class EloquentTestUserWithGlobalScope extends EloquentTestUser
@@ -964,6 +1004,18 @@ class EloquentTestUserWithGlobalScope extends EloquentTestUser
 
         static::addGlobalScope(function ($builder) {
             $builder->with('posts');
+        });
+    }
+}
+
+class EloquentTestUserWithOmittingGlobalScope extends EloquentTestUser
+{
+    public static function boot()
+    {
+        parent::boot();
+
+        static::addGlobalScope(function ($builder) {
+            $builder->where('email', '!=', 'taylorotwell@gmail.com');
         });
     }
 }

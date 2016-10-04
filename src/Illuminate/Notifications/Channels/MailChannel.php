@@ -2,9 +2,9 @@
 
 namespace Illuminate\Notifications\Channels;
 
-use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Contracts\Mail\Mailer;
+use Illuminate\Contracts\Mail\Mailable;
 use Illuminate\Notifications\Notification;
 
 class MailChannel
@@ -30,62 +30,50 @@ class MailChannel
     /**
      * Send the given notification.
      *
-     * @param  \Illuminate\Support\Collection  $notifiables
+     * @param  mixed  $notifiable
      * @param  \Illuminate\Notifications\Notification  $notification
      * @return void
      */
-    public function send($notifiables, Notification $notification)
+    public function send($notifiable, Notification $notification)
     {
-        $data = $this->prepareNotificationData($notification);
-
-        $emails = $notifiables->map(function ($n) {
-            return $n->routeNotificationFor('mail');
-        })->filter()->all();
-
-        if (empty($emails)) {
+        if (! $notifiable->routeNotificationFor('mail')) {
             return;
         }
 
-        $view = data_get($notification, 'options.view', 'notifications::email');
+        $message = $notification->toMail($notifiable);
 
-        $this->mailer->send($view, $data, function ($m) use ($notifiables, $notification, $emails) {
-            count($notifiables) === 1
-                        ? $m->to($emails) : $m->bcc($emails);
+        if ($message instanceof Mailable) {
+            return $message->send($this->mailer);
+        }
 
-            $m->subject($notification->subject ?: Str::title(
+        $this->mailer->send($message->view, $message->data(), function ($m) use ($notifiable, $notification, $message) {
+            $recipients = empty($message->to) ? $notifiable->routeNotificationFor('mail') : $message->to;
+
+            if (! empty($message->from)) {
+                $m->from($message->from[0], isset($message->from[1]) ? $message->from[1] : null);
+            }
+
+            if (is_array($recipients)) {
+                $m->bcc($recipients);
+            } else {
+                $m->to($recipients);
+            }
+
+            $m->subject($message->subject ?: Str::title(
                 Str::snake(class_basename($notification), ' ')
             ));
+
+            foreach ($message->attachments as $attachment) {
+                $m->attach($attachment['file'], $attachment['options']);
+            }
+
+            foreach ($message->rawAttachments as $attachment) {
+                $m->attachData($attachment['data'], $attachment['name'], $attachment['options']);
+            }
+
+            if (! is_null($message->priority)) {
+                $m->setPriority($message->priority);
+            }
         });
-    }
-
-    /**
-     * Prepare the data from the given notification.
-     *
-     * @param  \Illuminate\Notifications\Notification  $notification
-     * @return array
-     */
-    protected function prepareNotificationData($notification)
-    {
-        $data = $notification->toArray();
-
-        return Arr::set($data, 'actionColor', $this->actionColorForLevel($data['level']));
-    }
-
-    /**
-     * Get the action color for the given notification "level".
-     *
-     * @param  string  $level
-     * @return string
-     */
-    protected function actionColorForLevel($level)
-    {
-        switch ($level) {
-            case 'success':
-                return 'green';
-            case 'error':
-                return 'red';
-            default:
-                return 'blue';
-        }
     }
 }

@@ -7,7 +7,7 @@ use Illuminate\Contracts\Auth\Access\Gate;
 trait AuthorizesRequests
 {
     /**
-     * Authorize a given action against a set of arguments.
+     * Authorize a given action for the current user.
      *
      * @param  mixed  $ability
      * @param  mixed|array  $arguments
@@ -104,7 +104,6 @@ trait AuthorizesRequests
     protected function resourceAbilityMap()
     {
         return [
-            'index' => 'view',
             'show' => 'view',
             'create' => 'create',
             'store' => 'create',
