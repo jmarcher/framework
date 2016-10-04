@@ -219,6 +219,11 @@ class SupportStrTest extends PHPUnit_Framework_TestCase
         $this->assertEquals('Мама', Str::ucfirst('мама'));
         $this->assertEquals('Мама мыла раму', Str::ucfirst('мама мыла раму'));
     }
+
+    public function testEmptyString()
+    {
+        $this->assertEquals('', Str::EMPTY);
+    }
 }
 
 class StringableObjectStub

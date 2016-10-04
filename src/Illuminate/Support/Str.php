@@ -9,6 +9,11 @@ class Str
     use Macroable;
 
     /**
+    * Constant representing an empty string.
+    */
+    const EMPTY = '';
+
+    /**
      * The cache of snake-cased words.
      *
      * @var array
